@@ -80,7 +80,8 @@ export async function startTrainingRun(
   character: Pick<Character, "id" | "slug">,
   run: Pick<TrainingRun, "id" | "hyperparams" | "datasetImageCount">
 ): Promise<{ instanceName: string; zone: string }> {
-const instanceName = `train-${character.slug.replace(/_/g, "-")}-${run.id}-${nanoid(6)}`.toLowerCase();
+  const zone = ENV.GCP_ZONE;
+  const instanceName = `train-${character.slug.replace(/_/g, "-")}-${run.id}-${nanoid(6)}`.toLowerCase();
   const checkpointGcsPath = `gs://${ENV.GCS_BUCKET}/${buildPath(
     character.slug,
     "checkpoints",
