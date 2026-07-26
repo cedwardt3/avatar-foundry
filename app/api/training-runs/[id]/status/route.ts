@@ -73,8 +73,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // leaving it stuck in "running" forever.
   if (run.gceInstanceName && run.gceZone) {
     const stillRunning = await isInstanceRunning(run.gceInstanceName, run.gceZone);
-    if (!stillRunning && run.status === "running") {
-      const failureMessage = "Instance terminated without reporting a final status (likely spot preemption).";
+if (!stillRunning && (run.status === "running" || run.status === "provisioning")) {      const failureMessage = "Instance terminated without reporting a final status (likely spot preemption).";
       const [updated] = await db
         .update(trainingRuns)
         .set({
