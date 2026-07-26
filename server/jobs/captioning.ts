@@ -67,7 +67,7 @@ gcloud compute instances delete "$(hostname)" --zone="${zone}" --quiet
     acceleratorType: ENV.TRAINING_GPU_TYPE, // reuse the same GPU family already quota-approved; WD14 doesn't need much VRAM
     acceleratorCount: 1,
     sourceImage: `projects/${ENV.GCP_PROJECT_ID}/global/images/${ENV.TRAINING_VM_IMAGE}`, // same base image, different container
-    diskSizeGb: "50",
+    diskSizeGb: "150",
     startupScript,
     tags: ["avatar-foundry-captioning"],
   });
