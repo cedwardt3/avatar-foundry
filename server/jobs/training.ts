@@ -56,7 +56,7 @@ docker run --rm --gpus all \\
   -e NETWORK_DIM="${hp.networkDim ?? 32}" \\
   -e NETWORK_ALPHA="${hp.networkAlpha ?? 16}" \\
   -e BATCH_SIZE="${hp.batchSize ?? 1}" \\
-  gcr.io/${ENV.GCP_PROJECT_ID}/avatar-foundry-trainer:latest
+  us-central1-docker.pkg.dev/${ENV.GCP_PROJECT_ID}/avatar-foundry/avatar-foundry-trainer:latest
 
 write_status "succeeded" "training complete, checkpoint uploaded"
 

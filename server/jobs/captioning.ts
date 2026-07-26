@@ -51,7 +51,7 @@ docker run --rm --gpus all \\
   -e TRIGGER_TOKEN="${character.slug}" \\
   -e REFERENCES_GCS_PREFIX="${referencesPrefix}" \\
   -e DATASET_GCS_PREFIX="${datasetPrefix}" \\
-  gcr.io/${ENV.GCP_PROJECT_ID}/avatar-foundry-captioner:latest
+  us-central1-docker.pkg.dev/${ENV.GCP_PROJECT_ID}/avatar-foundry/avatar-foundry-captioner:latest
 
 write_status "succeeded" "captioning complete"
 
