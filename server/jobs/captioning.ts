@@ -21,7 +21,7 @@ export async function startCaptioningJob(
   character: Pick<Character, "id" | "slug">,
   opts: { jobId: string; referenceGcsPaths: string[] }
 ): Promise<{ instanceName: string; zone: string }> {
-  const instanceName = `caption-${character.slug}-${opts.jobId}-${nanoid(6)}`.toLowerCase();
+  const instanceName = `caption-${character.slug.replace(/_/g, "-")}-${opts.jobId}-${nanoid(6)}`.toLowerCase();
   const zone = ENV.GCP_ZONE;
 
   const referencesPrefix = `gs://${ENV.GCS_BUCKET}/${buildPath(character.slug, "references", "")}`;
