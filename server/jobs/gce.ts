@@ -62,6 +62,17 @@ export async function createSpotInstance(spec: SpotInstanceSpec): Promise<void> 
     networkInterfaces: [{ network: "global/networks/default" }],
     metadata: { items: [{ key: "startup-script", value: spec.startupScript }] },
     tags: { items: spec.tags ?? [] },
+    // Without this, the VM has no service account attached at all (the
+    // Compute API, unlike `gcloud`, does not default to the project's
+    // Compute Engine service account) — the metadata server then 404s on
+    // service-accounts/default/token, so gsutil/docker auth inside the
+    // startup script fails before the job container ever runs.
+    serviceAccounts: [
+      {
+        email: `avatar-foundry-app@${ENV.GCP_PROJECT_ID}.iam.gserviceaccount.com`,
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      },
+    ],
   };
 
   if (spec.acceleratorType) {

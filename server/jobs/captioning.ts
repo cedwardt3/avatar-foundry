@@ -21,7 +21,12 @@ export async function startCaptioningJob(
   character: Pick<Character, "id" | "slug">,
   opts: { jobId: string; referenceGcsPaths: string[] }
 ): Promise<{ instanceName: string; zone: string }> {
-  const instanceName = `caption-${character.slug.replace(/_/g, "-")}-${opts.jobId.replace(/_/g, "-")}-${nanoid(6)}`.toLowerCase();
+  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores.
+  // nanoid()'s default alphabet includes '_', so sanitize the whole name
+  // (not just slug/jobId) rather than relying on each piece being clean.
+  const instanceName = `caption-${character.slug}-${opts.jobId}-${nanoid(6)}`
+    .toLowerCase()
+    .replace(/_/g, "-");
   const zone = ENV.GCP_ZONE;
 
   const referencesPrefix = `gs://${ENV.GCS_BUCKET}/${buildPath(character.slug, "references", "")}`;
@@ -45,6 +50,8 @@ write_status() {
 trap 'write_status "failed" "captioning startup script exited unexpectedly"' ERR
 
 write_status "running" "captioning container starting"
+
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
 docker run --rm --gpus all \\
   -e CHARACTER_SLUG="${character.slug}" \\

@@ -45,6 +45,8 @@ trap 'write_status "failed" "startup script exited unexpectedly"' ERR
 
 write_status "running" "training container starting"
 
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
 docker run --rm --gpus all \\
   -e CHARACTER_SLUG="${opts.characterSlug}" \\
   -e TRIGGER_TOKEN="${opts.triggerToken}" \\
@@ -81,7 +83,12 @@ export async function startTrainingRun(
   run: Pick<TrainingRun, "id" | "hyperparams" | "datasetImageCount">
 ): Promise<{ instanceName: string; zone: string }> {
   const zone = ENV.GCP_ZONE;
-  const instanceName = `train-${character.slug.replace(/_/g, "-")}-${run.id}-${nanoid(6)}`.toLowerCase();
+  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores.
+  // nanoid()'s default alphabet includes '_', so sanitize the whole name
+  // (not just the slug) rather than relying on each piece being clean.
+  const instanceName = `train-${character.slug}-${run.id}-${nanoid(6)}`
+    .toLowerCase()
+    .replace(/_/g, "-");
   const checkpointGcsPath = `gs://${ENV.GCS_BUCKET}/${buildPath(
     character.slug,
     "checkpoints",
