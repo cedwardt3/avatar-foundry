@@ -113,13 +113,28 @@ docker push gcr.io/avatar-foundry/avatar-foundry-trainer:latest
 
 The training job (`server/jobs/training.ts`) boots a VM from a custom
 image expected to already have NVIDIA drivers, Docker, and the NVIDIA
-Container Toolkit installed. The fastest path is basing it on one of
-GCP's official Deep Learning VM images rather than building from scratch:
+Container Toolkit installed.
+
+Not every Deep Learning VM family has Docker — the PyTorch-specific
+families (e.g. `pytorch-latest-gpu`) are Conda-based and never install
+it, which is a silent trap: the VM boots fine, but every startup script
+fails at `docker run`. Use one of the `common-*` families instead —
+those are the Docker-based DLVM images with the NVIDIA Container Toolkit
+preconfigured:
 
 ```bash
 gcloud compute images create avatar-foundry-trainer \
-  --source-image-family=common-gpu-debian-11 \
+  --source-image-family=common-cu129-ubuntu-2204-nvidia-580 \
   --source-image-project=deeplearning-platform-release
+```
+
+The VM also needs [Private Google Access](https://cloud.google.com/vpc/docs/configure-private-google-access)
+enabled on its subnet — job VMs have no external IP, so without it they
+can't reach GCS/Artifact Registry to pull the container or write status:
+
+```bash
+gcloud compute networks subnets update default \
+  --region=us-central1 --enable-private-ip-google-access
 ```
 
 ### 6. Service account & IAM
