@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y \
 # Pinned to a specific commit for reproducibility; bump deliberately.
 RUN git clone https://github.com/kohya-ss/sd-scripts.git /opt/sd-scripts \
     && cd /opt/sd-scripts \
-    && git checkout sdxl \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir xformers bitsandbytes
 
