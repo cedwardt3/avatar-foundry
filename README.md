@@ -73,6 +73,39 @@ To test the live deployment instead of a local server:
 PLAYWRIGHT_BASE_URL=https://avatar-foundry-987381419883.us-central1.run.app npm run test:e2e
 ```
 
+## Checkpoint anchor probe (optional)
+
+A full training run only gets checked against the character's signature
+anchors (`characters.signatureAnchors`) once it finishes and reaches the
+Validate stage — which means a run that was never going to preserve the
+anchor still burns its entire training budget before anyone finds out.
+
+Passing `hyperparams.probeIntervalSteps` when starting a run (`POST
+/api/training-runs`) turns on a cheap interim tripwire instead: sd-scripts
+renders a small fixed-seed sample batch every `probeIntervalSteps` steps
+using the character's anchors as the prompt, and the training container
+uploads those samples to GCS as they're produced (see
+`server/jobs/training-image/entrypoint.py`'s background probe-upload
+thread — the main thread is blocked inside the training subprocess for
+the whole run, so this can't just happen inline).
+
+`app/api/training-runs/[id]/status/route.ts` picks up new probe entries
+on its normal polling and creates a `checkpointProbes` row per step
+(`status: pending_review`). There's no CLIP/VLM scoring wired up in this
+pipeline yet, so review is manual:
+
+```bash
+GET  /api/checkpoint-probes?trainingRunId=42        # list probes for a run
+POST /api/checkpoint-probes/17/review               # { "passed": false, "raterNotes": "..." }
+```
+
+If an early probe clearly isn't showing the anchor, that's the signal to
+stop burning training budget on a run that's already headed for a failed
+Validate stage — there's no cancel API route yet, but
+`cancelTrainingRun` in `server/jobs/training.ts` deletes the instance
+directly (the caller is still responsible for marking the row
+`cancelled`); fix Canon/Dataset before starting over.
+
 ## Backend setup (GCP)
 
 The prototype UI is now backed by a real pipeline: Postgres (Cloud SQL)

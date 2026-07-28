@@ -15,6 +15,9 @@ const startRunSchema = z.object({
       networkDim: z.number().int().positive().optional(),
       networkAlpha: z.number().int().positive().optional(),
       batchSize: z.number().int().positive().optional(),
+      // Opt-in interim checkpoint anchor probe — see drizzle/schema.ts
+      // checkpointProbes. Omit to disable.
+      probeIntervalSteps: z.number().int().positive().optional(),
     })
     .optional(),
 });

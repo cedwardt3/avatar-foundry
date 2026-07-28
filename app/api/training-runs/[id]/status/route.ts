@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/server/db";
-import { trainingRuns, characters } from "@/drizzle/schema";
+import { trainingRuns, characters, checkpointProbes } from "@/drizzle/schema";
 import { buildPath, readJson } from "@/server/storage";
 import { isInstanceRunning } from "@/server/jobs/training";
+import { readProbeStatus, newProbeEntries } from "@/server/jobs/checkpoint-probe";
 import { notifyTrainingRunComplete } from "@/server/notifications";
 
 type JobStatusFile = { runId: number; status: "running" | "succeeded" | "failed"; message: string };
@@ -23,6 +24,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const [character] = await db.select().from(characters).where(eq(characters.id, run.characterId)).limit(1);
   if (!character) return NextResponse.json({ error: "Character not found" }, { status: 404 });
+
+  // Sync any newly-appeared interim checkpoint probes (see
+  // server/jobs/checkpoint-probe.ts) ahead of handling the run's own
+  // terminal status below — the whole point is surfacing these while
+  // the run is still going, not after.
+  const probeStatus = await readProbeStatus(character.slug, run.id);
+  if (probeStatus) {
+    const existingProbeSteps = await db
+      .select({ step: checkpointProbes.checkpointStep })
+      .from(checkpointProbes)
+      .where(eq(checkpointProbes.trainingRunId, run.id));
+    const toInsert = newProbeEntries(probeStatus, new Set(existingProbeSteps.map((p) => p.step)));
+    if (toInsert.length > 0) {
+      await db.insert(checkpointProbes).values(
+        toInsert.map((entry) => ({
+          characterId: character.id,
+          trainingRunId: run.id,
+          checkpointStep: entry.step,
+          sampleImageGcsPaths: entry.sampleImageGcsPaths,
+          anchorDescription: entry.anchorDescription,
+        }))
+      );
+    }
+  }
 
   // Source of truth for completion is the status file the container writes
   // to GCS right before the VM self-deletes — not the VM's existence,

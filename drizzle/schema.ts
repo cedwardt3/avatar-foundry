@@ -171,6 +171,11 @@ export const trainingRuns = pgTable("training_runs", {
     networkDim?: number;
     networkAlpha?: number;
     batchSize?: number;
+    // Opt-in: if set, sd-scripts renders a fixed-seed sample batch every
+    // N steps and the training container uploads it to GCS mid-run for
+    // a cheap early anchor-presence check (see checkpointProbes below).
+    // Omit to disable — existing runs are unaffected either way.
+    probeIntervalSteps?: number;
   }>(),
   datasetImageCount: integer("dataset_image_count"),
 
@@ -189,6 +194,52 @@ export const trainingRuns = pgTable("training_runs", {
 
 export type TrainingRun = typeof trainingRuns.$inferSelect;
 export type InsertTrainingRun = typeof trainingRuns.$inferInsert;
+
+export const checkpointProbeStatus = pgEnum("checkpoint_probe_status", [
+  "pending_review",
+  "passed",
+  "failed",
+]);
+
+/**
+ * Checkpoint probes: a cheap interim tripwire during training, distinct
+ * from the full Validate-stage rubric in `validations`. sd-scripts
+ * renders a small fixed-seed sample batch every `probeIntervalSteps`
+ * (see trainingRuns.hyperparams) using the character's signature
+ * anchors as the prompt; the training container uploads those samples
+ * to GCS mid-run (see server/jobs/training-image/entrypoint.py) and the
+ * status-polling route syncs one row per probed step here.
+ *
+ * There's no automated scorer wired up yet (no CLIP/VLM model lives in
+ * this pipeline) — rows land as "pending_review" and a human marks
+ * passed/failed via app/api/checkpoint-probes/[id]/review. The point
+ * is to catch an obviously-not-learning-the-anchor run hours before
+ * the full run finishes and fails Gate 06-equivalent validation, not
+ * to replace that final review.
+ */
+export const checkpointProbes = pgTable("checkpoint_probes", {
+  id: serial("id").primaryKey(),
+  characterId: integer("character_id")
+    .notNull()
+    .references(() => characters.id, { onDelete: "cascade" }),
+  trainingRunId: integer("training_run_id")
+    .notNull()
+    .references(() => trainingRuns.id, { onDelete: "cascade" }),
+
+  checkpointStep: integer("checkpoint_step").notNull(),
+  sampleImageGcsPaths: jsonb("sample_image_gcs_paths").$type<string[]>().notNull(),
+  anchorDescription: text("anchor_description").notNull(), // snapshot of signatureAnchors at probe time, for provenance if canon changes later
+
+  status: checkpointProbeStatus("status").notNull().default("pending_review"),
+  raterName: varchar("rater_name", { length: 128 }),
+  raterNotes: text("rater_notes"),
+  reviewedAt: timestamp("reviewed_at"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CheckpointProbe = typeof checkpointProbes.$inferSelect;
+export type InsertCheckpointProbe = typeof checkpointProbes.$inferInsert;
 
 /**
  * Generations: individual images produced from a trained checkpoint

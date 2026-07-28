@@ -29,8 +29,21 @@ function buildStartupScript(opts: {
   statusGcsPath: string;
   hyperparams: TrainingRun["hyperparams"];
   triggerToken: string;
+  anchorDescription: string;
+  probeGcsPrefix: string;
 }): string {
   const hp = opts.hyperparams ?? {};
+  // Checkpoint probe is opt-in (see drizzle/schema.ts checkpointProbes) —
+  // only pass the env vars through when a probe interval was configured,
+  // so entrypoint.py's `probe_enabled` check (all three vars present)
+  // stays the single source of truth for whether it's on.
+  const probeEnvVars = hp.probeIntervalSteps
+    ? `
+  -e PROBE_INTERVAL_STEPS="${hp.probeIntervalSteps}" \\
+  -e ANCHOR_DESCRIPTION="${opts.anchorDescription.replace(/"/g, '\\"')}" \\
+  -e PROBE_GCS_PREFIX="${opts.probeGcsPrefix}" \\
+  -e TRAINING_RUN_ID="${opts.runId}" \\`
+    : "";
   return `#!/bin/bash
 set -euo pipefail
 
@@ -63,7 +76,7 @@ docker run --rm --gpus all --shm-size=4g \\
   -e RESOLUTION="${hp.resolution ?? 1024}" \\
   -e NETWORK_DIM="${hp.networkDim ?? 32}" \\
   -e NETWORK_ALPHA="${hp.networkAlpha ?? 16}" \\
-  -e BATCH_SIZE="${hp.batchSize ?? 1}" \\
+  -e BATCH_SIZE="${hp.batchSize ?? 1}" \\${probeEnvVars}
   us-central1-docker.pkg.dev/${ENV.GCP_PROJECT_ID}/avatar-foundry/avatar-foundry-trainer:latest
 
 write_status "succeeded" "training complete, checkpoint uploaded"
@@ -85,7 +98,7 @@ gcloud compute instances delete "$(hostname)" --zone="${ENV.GCP_ZONE}" --quiet
  * isolation.
  */
 export async function startTrainingRun(
-  character: Pick<Character, "id" | "slug">,
+  character: Pick<Character, "id" | "slug" | "signatureAnchors">,
   run: Pick<TrainingRun, "id" | "hyperparams" | "datasetImageCount">
 ): Promise<{ instanceName: string; zone: string }> {
   const zone = ENV.GCP_ZONE;
@@ -109,6 +122,10 @@ export async function startTrainingRun(
     `${run.id}/status.json`
   )}`;
   const datasetGcsPrefix = `gs://${ENV.GCS_BUCKET}/${buildPath(character.slug, "dataset", "")}`;
+  const probeGcsPrefix = `gs://${ENV.GCS_BUCKET}/${buildPath(character.slug, "checkpoints", `${run.id}/probes/`)}`;
+  // signatureAnchors is a list ("must-preserve traits") — join them into
+  // one descriptive phrase for the sample prompt / probe provenance.
+  const anchorDescription = (character.signatureAnchors ?? []).join(", ");
 
   const startupScript = buildStartupScript({
     runId: run.id,
@@ -118,6 +135,8 @@ export async function startTrainingRun(
     statusGcsPath,
     hyperparams: run.hyperparams,
     triggerToken: character.slug,
+    anchorDescription,
+    probeGcsPrefix,
   });
 
   await createSpotInstance({
