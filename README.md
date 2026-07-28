@@ -56,6 +56,23 @@ npm run build
 npm run lint
 ```
 
+## End-to-end tests
+
+Playwright drives a real Chromium browser against the app — useful for
+anything static analysis can't catch (does clicking a tab actually swap
+the content, do the portrait images actually decode, etc.).
+
+```bash
+npx playwright install chromium   # first time only
+npm run test:e2e                  # runs against localhost:3000 (starts the dev server if needed)
+```
+
+To test the live deployment instead of a local server:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://avatar-foundry-987381419883.us-central1.run.app npm run test:e2e
+```
+
 ## Backend setup (GCP)
 
 The prototype UI is now backed by a real pipeline: Postgres (Cloud SQL)

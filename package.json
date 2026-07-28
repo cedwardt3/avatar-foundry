@@ -8,26 +8,28 @@
     "start": "next start",
     "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
-    "next": "16.2.6",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "drizzle-orm": "^0.36.4",
-    "pg": "^8.13.1",
     "@google-cloud/cloud-sql-connector": "^1.4.0",
     "@google-cloud/storage": "^7.14.0",
+    "drizzle-orm": "^0.36.4",
     "google-auth-library": "^9.15.0",
-    "zod": "^3.24.1",
-    "nanoid": "^5.0.9"
+    "nanoid": "^5.0.9",
+    "next": "16.2.6",
+    "pg": "^8.13.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
+    "@types/pg": "^8.11.10",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/pg": "^8.11.10",
     "drizzle-kit": "^0.28.1",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
