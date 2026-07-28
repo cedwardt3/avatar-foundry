@@ -39,9 +39,17 @@ NETWORK_DIM = env("NETWORK_DIM", "32")
 NETWORK_ALPHA = env("NETWORK_ALPHA", "16")
 BATCH_SIZE = env("BATCH_SIZE", "1")
 
+# sd-scripts' DreamBooth-style dataset loader requires --train_data_dir to be
+# the *parent* of one or more subfolders named "<repeats>_<class>", not a flat
+# folder of images — it walks immediate subdirectories looking for that
+# "<int>_..." naming pattern and skips anything else (see config_util.py's
+# "ignore directory without repeats" warning). REPEATS controls how many
+# times each image is seen per epoch given the small dataset size.
+REPEATS = 10
 DATASET_DIR = Path("/workspace/dataset") / CHARACTER_SLUG
+IMAGES_DIR = DATASET_DIR / f"{REPEATS}_{TRIGGER_TOKEN}"
 OUTPUT_DIR = Path("/workspace/output")
-DATASET_DIR.mkdir(parents=True, exist_ok=True)
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -52,9 +60,12 @@ def run(cmd: list[str]) -> None:
 
 def main() -> None:
     print(f"[1/3] Downloading dataset for {CHARACTER_SLUG} from {DATASET_GCS_PREFIX}")
-    run(["gsutil", "-m", "cp", "-r", f"{DATASET_GCS_PREFIX}*", str(DATASET_DIR)])
+    run(["gsutil", "-m", "cp", "-r", f"{DATASET_GCS_PREFIX}*", str(IMAGES_DIR)])
 
-    image_count = len(list(DATASET_DIR.glob("*.png")) + list(DATASET_DIR.glob("*.jpg")))
+    image_count = sum(
+        len(list(IMAGES_DIR.glob(f"*{ext}")))
+        for ext in (".png", ".jpg", ".jpeg", ".webp")
+    )
     if image_count == 0:
         print("FATAL: no training images found after download", file=sys.stderr)
         sys.exit(1)
@@ -81,10 +92,21 @@ def main() -> None:
         f"--train_batch_size={BATCH_SIZE}",
         f"--max_train_steps={TRAIN_STEPS}",
         f"--learning_rate={LEARNING_RATE}",
+        # Dataset is tiny (a couple dozen images) — multiprocess DataLoader
+        # workers add fork/CUDA-init deadlock risk for no benefit here, and
+        # already caused a stuck (0% GPU, no progress) training run. Force
+        # synchronous single-process loading instead.
+        "--max_data_loader_n_workers=0",
         "--network_module=networks.lora",
         f"--network_dim={NETWORK_DIM}",
         f"--network_alpha={NETWORK_ALPHA}",
         "--mixed_precision=fp16",
+        # SDXL's stock VAE overflows in fp16, producing NaN latents that
+        # sd-scripts silently zeroes out (confirmed via a real run's logs:
+        # "NaN found in latents, replacing with zeros" on every image) —
+        # this corrupts training without ever raising an error. Keep the
+        # VAE itself in fp32 while the rest of the model stays fp16.
+        "--no_half_vae",
         "--gradient_checkpointing",
         "--xformers",
         "--save_every_n_steps=500",  # periodic checkpoints — limits loss if the spot VM is preempted mid-run

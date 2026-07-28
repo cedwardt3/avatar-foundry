@@ -47,7 +47,13 @@ write_status "running" "training container starting"
 
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-docker run --rm --gpus all \\
+# Always pull explicitly: \`docker run\` only pulls when no local image
+# already satisfies the tag, so a VM image that happens to have an old
+# \`:latest\` cached (e.g. baked in during testing) would silently run
+# stale code forever otherwise.
+docker pull us-central1-docker.pkg.dev/${ENV.GCP_PROJECT_ID}/avatar-foundry/avatar-foundry-trainer:latest
+
+docker run --rm --gpus all --shm-size=4g \\
   -e CHARACTER_SLUG="${opts.characterSlug}" \\
   -e TRIGGER_TOKEN="${opts.triggerToken}" \\
   -e DATASET_GCS_PREFIX="${opts.datasetGcsPrefix}" \\
@@ -83,12 +89,15 @@ export async function startTrainingRun(
   run: Pick<TrainingRun, "id" | "hyperparams" | "datasetImageCount">
 ): Promise<{ instanceName: string; zone: string }> {
   const zone = ENV.GCP_ZONE;
-  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores.
-  // nanoid()'s default alphabet includes '_', so sanitize the whole name
-  // (not just the slug) rather than relying on each piece being clean.
+  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores,
+  // and critically no trailing dash. nanoid()'s default alphabet includes
+  // '_', so sanitize the whole name (not just the slug) rather than relying
+  // on each piece being clean, and strip any dash left dangling at the end
+  // (e.g. a trailing '_' from nanoid becoming a trailing '-').
   const instanceName = `train-${character.slug}-${run.id}-${nanoid(6)}`
     .toLowerCase()
-    .replace(/_/g, "-");
+    .replace(/_/g, "-")
+    .replace(/-+$/, "");
   const checkpointGcsPath = `gs://${ENV.GCS_BUCKET}/${buildPath(
     character.slug,
     "checkpoints",

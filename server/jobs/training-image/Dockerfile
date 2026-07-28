@@ -10,6 +10,7 @@ FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y \
     python3.10 python3-pip git curl \
+    libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # kohya_ss's sd-scripts — the de facto standard SDXL LoRA training toolkit.
@@ -17,7 +18,7 @@ RUN apt-get update && apt-get install -y \
 RUN git clone https://github.com/kohya-ss/sd-scripts.git /opt/sd-scripts \
     && cd /opt/sd-scripts \
     && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir xformers bitsandbytes
+    && pip install --no-cache-dir torchvision xformers bitsandbytes
 
 # Google Cloud SDK, for gsutil (dataset download + checkpoint upload)
 RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts

@@ -21,12 +21,15 @@ export async function startCaptioningJob(
   character: Pick<Character, "id" | "slug">,
   opts: { jobId: string; referenceGcsPaths: string[] }
 ): Promise<{ instanceName: string; zone: string }> {
-  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores.
-  // nanoid()'s default alphabet includes '_', so sanitize the whole name
-  // (not just slug/jobId) rather than relying on each piece being clean.
+  // GCE instance names must match [a-z]([-a-z0-9]*[a-z0-9])? — no underscores,
+  // and critically no trailing dash. nanoid()'s default alphabet includes
+  // '_', so sanitize the whole name (not just slug/jobId) rather than relying
+  // on each piece being clean, and strip any dash left dangling at the end
+  // (e.g. a trailing '_' from nanoid becoming a trailing '-').
   const instanceName = `caption-${character.slug}-${opts.jobId}-${nanoid(6)}`
     .toLowerCase()
-    .replace(/_/g, "-");
+    .replace(/_/g, "-")
+    .replace(/-+$/, "");
   const zone = ENV.GCP_ZONE;
 
   const referencesPrefix = `gs://${ENV.GCS_BUCKET}/${buildPath(character.slug, "references", "")}`;
@@ -52,6 +55,12 @@ trap 'write_status "failed" "captioning startup script exited unexpectedly"' ERR
 write_status "running" "captioning container starting"
 
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+# Always pull explicitly: \`docker run\` only pulls when no local image
+# already satisfies the tag, so a VM image that happens to have an old
+# \`:latest\` cached (e.g. baked in during testing) would silently run
+# stale code forever otherwise.
+docker pull us-central1-docker.pkg.dev/${ENV.GCP_PROJECT_ID}/avatar-foundry/avatar-foundry-captioner:latest
 
 docker run --rm --gpus all \\
   -e CHARACTER_SLUG="${character.slug}" \\

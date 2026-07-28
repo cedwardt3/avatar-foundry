@@ -46,9 +46,12 @@ export async function createSpotInstance(spec: SpotInstanceSpec): Promise<void> 
   const body: Record<string, unknown> = {
     name: spec.name,
     machineType: `zones/${spec.zone}/machineTypes/${spec.machineType}`,
+    // GPU-attached instances can't live-migrate, so onHostMaintenance must be
+    // TERMINATE regardless of spot vs on-demand — GCE's default (MIGRATE) is
+    // rejected outright for any VM with guestAccelerators.
     scheduling: ENV.USE_SPOT_INSTANCES
-      ? { provisioningModel: "SPOT", instanceTerminationAction: "DELETE" }
-      : undefined,
+      ? { provisioningModel: "SPOT", instanceTerminationAction: "DELETE", onHostMaintenance: "TERMINATE" }
+      : { onHostMaintenance: "TERMINATE" },
     disks: [
       {
         boot: true,
