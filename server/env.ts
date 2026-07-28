@@ -30,7 +30,10 @@ export const ENV = {
   // no exposed IP/password needed if using IAM auth — see server/db.ts).
   DATABASE_URL: optional("DATABASE_URL"),
   INSTANCE_CONNECTION_NAME: optional("INSTANCE_CONNECTION_NAME"), // format: project:region:instance
-  DB_USER: optional("DB_USER") ?? "avatar_foundry_app",
+  // Must match the IAM database user created via `gcloud sql users create`
+  // (README "Database setup") — Postgres IAM usernames keep the service
+  // account's email verbatim, not a sanitized/underscored form.
+  DB_USER: optional("DB_USER") ?? "avatar-foundry-app@avatar-foundry.iam",
   DB_NAME: optional("DB_NAME") ?? "avatar_foundry",
 
   // --- Cloud Storage ---

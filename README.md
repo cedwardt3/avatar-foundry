@@ -29,9 +29,25 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Deploy
 
-This is a standard Next.js application and can be imported directly into
-Vercel. Use the default framework settings; no environment variables are
-required for the current prototype.
+The app is deployed to Cloud Run in the `avatar-foundry` project, not
+Vercel — it needs to run *as* the `avatar-foundry-app` service account
+(implicit runtime identity, no key file) to reach Cloud SQL, GCS, and
+Compute Engine, which Vercel can't provide.
+
+```bash
+gcloud run deploy avatar-foundry \
+  --source . \
+  --region=us-central1 \
+  --allow-unauthenticated \
+  --service-account=avatar-foundry-app@avatar-foundry.iam.gserviceaccount.com \
+  --set-env-vars="GCP_PROJECT_ID=avatar-foundry,GCP_REGION=us-central1,GCP_ZONE=us-east4-a,INSTANCE_CONNECTION_NAME=avatar-foundry:us-central1:avatar-foundry-db,DB_NAME=avatar_foundry,GCS_BUCKET=avatar-foundry-assets,TRAINING_VM_IMAGE=avatar-foundry-trainer,TRAINING_MACHINE_TYPE=g2-standard-4,TRAINING_GPU_TYPE=nvidia-l4"
+```
+
+`--source .` builds via Cloud Native Buildpacks (no Dockerfile needed) —
+it runs `npm run build` then `npm start`. `--allow-unauthenticated`
+makes the `*.run.app` URL public with no IAM check; drop it and grant
+`roles/run.invoker` to specific accounts instead if it should be
+restricted.
 
 ## Validation
 

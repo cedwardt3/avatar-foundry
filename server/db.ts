@@ -38,7 +38,11 @@ export async function getDb(): Promise<DrizzleDb | null> {
       const clientOpts = await _connector.getOptions({
         instanceConnectionName: ENV.INSTANCE_CONNECTION_NAME,
         authType: AuthTypes.IAM,
-        ipType: IpAddressTypes.PRIVATE, // use PUBLIC if the instance has no VPC peering set up yet
+        // avatar-foundry-db has no VPC peering / private IP configured (see
+        // `gcloud sql instances describe` — ipv4Enabled only), so PRIVATE
+        // would fail to find an address at connect time. The connector still
+        // authenticates via IAM and encrypts the connection over public IP.
+        ipType: IpAddressTypes.PUBLIC,
       });
       _pool = new Pool({
         ...clientOpts,
